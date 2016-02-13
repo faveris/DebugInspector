@@ -202,24 +202,22 @@ public class DebugInspectorLayout
         }
 
         string typeInfo = _type.Name;
-        if (_type.IsInterface)
+        Type instanceType = _value.GetType();
+        if (_type != instanceType)
         {
-            // Use type of instance instead of interface
-            _type = _value.GetType();
-
-            typeInfo += ", " + _type.Name;
+            typeInfo += ", " + instanceType.Name;
         }
 
         if (BeginFoldout(_value, false, _label + " (" + typeInfo + ")", _icon))
         {
             try
             {
-                List<FieldInfo> fields = new List<FieldInfo>(_type.GetFields(BindingFlags.Public | BindingFlags.Instance));
+                List<FieldInfo> fields = new List<FieldInfo>(instanceType.GetFields(BindingFlags.Public | BindingFlags.Instance));
 
-                while (_type != null)
+                while (instanceType != null)
                 {
-                    fields.AddRange(_type.GetFields(BindingFlags.NonPublic | BindingFlags.Instance));
-                    _type = _type.BaseType;
+                    fields.AddRange(instanceType.GetFields(BindingFlags.NonPublic | BindingFlags.Instance));
+                    instanceType = instanceType.BaseType;
                 }
 
                 foreach (FieldInfo field in fields)
