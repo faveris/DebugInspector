@@ -170,9 +170,9 @@ public class DebugInspectorLayout
         {
             return ListField(_label, _type, _value as IList);
         }
-        else if (_type.IsClass)
+        else if (_type.IsClass || _type.IsInterface)
         {
-            return ObjectField(_label + " (" + _type.Name + ")", _type, _value);
+            return ObjectField(_label, _type, _value);
         }
 
         EditorGUILayout.BeginHorizontal();
@@ -201,17 +201,25 @@ public class DebugInspectorLayout
             return NullField(_label, _type, _value);
         }
 
-        if (BeginFoldout(_value, false, _label, _icon))
+        string typeInfo = _type.Name;
+        if (_type.IsInterface)
+        {
+            // Use type of instance instead of interface
+            _type = _value.GetType();
+
+            typeInfo += ", " + _type.Name;
+        }
+
+        if (BeginFoldout(_value, false, _label + " (" + typeInfo + ")", _icon))
         {
             try
             {
-                Type type = _value.GetType();
-                List<FieldInfo> fields = new List<FieldInfo>(type.GetFields(BindingFlags.Public | BindingFlags.Instance));
+                List<FieldInfo> fields = new List<FieldInfo>(_type.GetFields(BindingFlags.Public | BindingFlags.Instance));
 
-                while (type != null)
+                while (_type != null)
                 {
-                    fields.AddRange(type.GetFields(BindingFlags.NonPublic | BindingFlags.Instance));
-                    type = type.BaseType;
+                    fields.AddRange(_type.GetFields(BindingFlags.NonPublic | BindingFlags.Instance));
+                    _type = _type.BaseType;
                 }
 
                 foreach (FieldInfo field in fields)
