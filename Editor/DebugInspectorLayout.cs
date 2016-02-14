@@ -16,6 +16,8 @@ public class DebugInspectorLayout
     private IDictionary<object, FoldoutNode> m_foldouts = new Dictionary<object, FoldoutNode>();
     private Stack<FoldoutIndex> m_openedFoldouts = new Stack<FoldoutIndex>();
 
+    private Stack<bool> m_paragraphs = new Stack<bool>();
+
     //
     // Static interface
     //
@@ -29,14 +31,23 @@ public class DebugInspectorLayout
         }
     }
 
-    public static object ObjectField(string _label, object _value, Texture _icon = null)
+    public static void ObjectField(string _label, object _value, Texture _icon = null)
     {
         if (_value == null)
         {
             throw new ArgumentNullException("_value");
         }
 
-        return GetInstance().ObjectField(_label, _value.GetType(), _value, _icon);
+        GetInstance().DrawFields(_label, _value.GetType(), _value, _icon);
+    }
+
+    //
+    // Construction
+    //
+
+    private DebugInspectorLayout()
+    {
+        m_paragraphs.Push(false);
     }
 
     //
@@ -51,6 +62,35 @@ public class DebugInspectorLayout
         }
 
         return s_instance;
+    }
+
+    private void BeginParagraphArea()
+    {
+        m_paragraphs.Push(false);
+    }
+
+    private void MarkParagraph()
+    {
+        if (m_paragraphs.Count == 0)
+        {
+            throw new InvalidOperationException("Call BeginParagraphArea() before trying to mark paragraph.");
+        }
+
+        if (m_paragraphs.Peek())
+        {
+            // Separate from previous content
+            EditorGUILayout.Separator();
+        }
+        else
+        {
+            m_paragraphs.Pop();
+            m_paragraphs.Push(true);
+        }
+    }
+
+    private void EndParagraphArea()
+    {
+        m_paragraphs.Pop();
     }
 
     private bool BeginFoldout(object _object, bool _isOpenedByDefault, string _label, Texture _icon = null)
@@ -91,6 +131,7 @@ public class DebugInspectorLayout
 
             m_openedFoldouts.Push(new FoldoutIndex(node));
             EditorGUI.indentLevel++;
+            BeginParagraphArea();
         }
 
         if (node != null)
@@ -105,6 +146,7 @@ public class DebugInspectorLayout
     {
         EditorGUI.indentLevel--;
         m_openedFoldouts.Pop();
+        EndParagraphArea();
     }
 
     private object FieldField(string _label, Type _type, object _value)
@@ -208,34 +250,99 @@ public class DebugInspectorLayout
             typeInfo += ", " + instanceType.Name;
         }
 
-        if (BeginFoldout(_value, false, _label + " (" + typeInfo + ")", _icon))
+        DrawFields(_label + " (" + typeInfo + ")", instanceType, _value, _icon);
+        return _value;
+    }
+
+    private void DrawFields(string _label, Type _type, object _value, Texture _icon)
+    {
+        if (BeginFoldout(_value, false, _label, _icon))
         {
             try
             {
-                List<FieldInfo> fields = new List<FieldInfo>(instanceType.GetFields(BindingFlags.Public | BindingFlags.Instance));
-
-                while (instanceType != null)
+                Type baseType = _type.BaseType;
+                if (baseType != null)
                 {
-                    fields.AddRange(instanceType.GetFields(BindingFlags.NonPublic | BindingFlags.Instance));
-                    instanceType = instanceType.BaseType;
+                    MarkParagraph();
+                    DrawFields("base (" + baseType.Name + ")", baseType, _value, null);
                 }
 
-                foreach (FieldInfo field in fields)
-                {
-                    if (!field.IsPublic ||
-                        field.GetCustomAttributes(typeof(HideInInspector), true).Length > 0)
-                    {
-                        field.SetValue(_value, FieldField(field.Name, field.FieldType, field.GetValue(_value)));
-                    }
-                }
+                DrawFields(null, _type, _value, BindingFlags.Instance);
+                DrawFields("Static fields", _type, _value, BindingFlags.Static);
             }
             finally
             {
                 EndFoldout();
             }
         }
+    }
 
-        return _value;
+    private void DrawFields(string _label, Type _type, object _value, BindingFlags _flags)
+    {
+        List<FieldInfo> privateFields = new List<FieldInfo>(_type.GetFields(BindingFlags.NonPublic | _flags));
+        List<FieldInfo> publicFields = new List<FieldInfo>(_type.GetFields(BindingFlags.Public | _flags));
+
+        // Remove base public fields
+        while ((_type = _type.BaseType) != null)
+        {
+            List<FieldInfo> baseFields = new List<FieldInfo>(_type.GetFields(BindingFlags.Public | _flags));
+            publicFields.RemoveAll((FieldInfo f) => baseFields.Contains(f));
+        }
+
+        if (privateFields.Count == 0 &&
+            publicFields.Count == 0)
+        {
+            return;
+        }
+
+        MarkParagraph();
+
+        if (_label == null ||
+            BeginFoldout(_value, false, _label))
+        {
+            try
+            {
+                DrawFields(null, privateFields, _value);
+                DrawFields("Public fields", publicFields, _value);
+            }
+            finally
+            {
+                if (_label != null)
+                {
+                    EndFoldout();
+                }
+            }
+        }
+    }
+
+    private void DrawFields(string _label, IList<FieldInfo> _fields, object _value)
+    {
+        if (_fields.Count == 0)
+        {
+            return;
+        }
+
+        MarkParagraph();
+
+        if (_label == null ||
+            BeginFoldout(_value, false, _label))
+        {
+            try
+            {
+                foreach (FieldInfo field in _fields)
+                {
+                    field.SetValue(_value, FieldField(field.Name, field.FieldType, field.GetValue(_value)));
+                }
+
+            }
+            finally
+            {
+                if (_label != null)
+                {
+                    EndFoldout();
+                }
+            }
+        }
     }
 
     private IList ListField(string _label, Type _type, IList _value)
