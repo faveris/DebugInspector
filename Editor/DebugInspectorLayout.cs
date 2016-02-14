@@ -149,6 +149,14 @@ public class DebugInspectorLayout
         EndParagraphArea();
     }
 
+    private void DrawString(string _label, string _string)
+    {
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField(_label);
+        EditorGUILayout.LabelField(_string);
+        EditorGUILayout.EndHorizontal();
+    }
+
     private object FieldField(string _label, Type _type, object _value)
     {
         if (_type == typeof(byte))
@@ -217,19 +225,13 @@ public class DebugInspectorLayout
             return ObjectField(_label, _type, _value);
         }
 
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField(_label);
-        EditorGUILayout.LabelField("Unsupported type (" + _type.Name + ")");
-        EditorGUILayout.EndHorizontal();
+        DrawString(_label, "Unsupported type (" + _type.Name + ")");
         return _value;
     }
 
     private object NullField(string _label, Type _type, object _value)
     {
-        EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField(_label);
-        EditorGUILayout.LabelField("null (" + _type.Name + ")");
-        EditorGUILayout.EndHorizontal();
+        DrawString(_label, "null (" + _type.Name + ")");
 
         // $TODO: Make possible to create object
 
@@ -331,7 +333,15 @@ public class DebugInspectorLayout
             {
                 foreach (FieldInfo field in _fields)
                 {
-                    field.SetValue(_value, FieldField(field.Name, field.FieldType, field.GetValue(_value)));
+                    if (field.IsLiteral && !field.IsInitOnly)
+                    {
+                        // Field is a constant
+                        DrawString(field.Name, field.GetValue(_value).ToString());
+                    }
+                    else
+                    {
+                        field.SetValue(_value, FieldField(field.Name, field.FieldType, field.GetValue(_value)));
+                    }
                 }
 
             }
