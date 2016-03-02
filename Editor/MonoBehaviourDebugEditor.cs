@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 
-[CustomEditor(typeof(MonoBehaviour), true)]
+[CustomEditor(typeof(MonoBehaviour), true), CanEditMultipleObjects]
 public class MonoBehaviourDebugEditor : Editor
 {
     //
