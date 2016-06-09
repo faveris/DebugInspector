@@ -220,7 +220,7 @@ public class DebugInspectorLayout
         {
             return ListField(_label, _type, _value as IList);
         }
-        else if (_type.IsClass || _type.IsInterface)
+        else if (_type.IsClass || _type.IsInterface || _type.IsValueType && !_type.IsPrimitive)
         {
             return ObjectField(_label, _type, _value);
         }
